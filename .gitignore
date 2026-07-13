@@ -1,0 +1,29 @@
+# Dependencias
+node_modules/
+
+# Compilaciones
+dist/
+apps/web/dist/
+apps/api/dist/
+
+# Variables de entorno
+.env
+.env.local
+
+# Base de datos local
+*.db
+*.db-journal
+
+# Archivos temporales
+uploads/
+temp/
+
+# Logs
+*.log
+npm-debug.log*
+
+# Sistema y editores
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

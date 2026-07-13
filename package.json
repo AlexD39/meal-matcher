@@ -1,0 +1,15 @@
+{
+  "name": "meal-matcher",
+  "version": "1.0.0",
+  "description": "Sistema local de reconocimiento de ingredientes y recomendación de recetas",
+  "private": true,
+  "workspaces": [
+    "apps/web",
+    "apps/api"
+  ],
+  "scripts": {
+    "dev:web": "npm run dev --workspace=web",
+    "dev:api": "npm run dev --workspace=api",
+    "build": "npm run build --workspaces"
+  }
+}
