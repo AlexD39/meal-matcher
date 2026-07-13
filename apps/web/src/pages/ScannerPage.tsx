@@ -84,7 +84,7 @@ export function ScannerPage() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   const [scanStatus, setScanStatus] = useState<ScanStatus>('idle')
-  const [detectedIngredient, setDetectedIngredient] = useState('Aguacate')
+  const [detectedIngredients, setDetectedIngredients] = useState<string[]>([])
   const [errorMessage, setErrorMessage] = useState('')
 
   useEffect(() => {
@@ -95,9 +95,6 @@ export function ScannerPage() {
     }
   }, [previewUrl])
 
-  function normalizeName(value: string) {
-    return value.trim().toLocaleLowerCase('es')
-  }
 
   function addIngredient(
   name: string,
@@ -148,7 +145,7 @@ export function ScannerPage() {
     setSelectedFile(file)
     setPreviewUrl(URL.createObjectURL(file))
     setScanStatus('preview')
-    setDetectedIngredient('Aguacate')
+    setDetectedIngredients([])
     setErrorMessage('')
   }
 
@@ -170,7 +167,7 @@ export function ScannerPage() {
     }
   }
 
-  function handleAnalyzeImage() {
+  async function handleAnalyzeImage() {
     if (!selectedFile) {
       setErrorMessage('Primero selecciona una imagen.')
       return
@@ -179,20 +176,48 @@ export function ScannerPage() {
     setScanStatus('scanning')
     setErrorMessage('')
 
-    window.setTimeout(() => {
-      setScanStatus('success')
-    }, 1600)
+    try {
+      const formData = new FormData()
+      formData.append('image', selectedFile)
+
+      const response = await fetch('/api/classifier/scan-fridge', {
+        method: 'POST',
+        body: formData,
+      })
+
+      if (!response.ok) {
+        throw new Error(`Error en el servidor: ${response.statusText}`)
+      }
+
+      const data = (await response.json()) as {
+        success: boolean
+        ingredients: string[]
+      }
+
+      if (data.success && Array.isArray(data.ingredients) && data.ingredients.length > 0) {
+        setDetectedIngredients(data.ingredients)
+        setScanStatus('success')
+      } else {
+        throw new Error('No se detectaron ingredientes en la imagen.')
+      }
+    } catch (error: any) {
+      setScanStatus('preview')
+      setErrorMessage(error.message || 'Error al conectar con el servidor de análisis.')
+    }
   }
 
-  function handleAddDetectedIngredient() {
-    addIngredient(detectedIngredient, 'scan')
+  function handleAddDetectedIngredients() {
+    detectedIngredients.forEach((ingredient) => {
+      addIngredient(ingredient, 'scan')
+    })
+    resetScanner()
   }
 
   function resetScanner() {
     setSelectedFile(null)
     setPreviewUrl(null)
     setScanStatus('idle')
-    setDetectedIngredient('Aguacate')
+    setDetectedIngredients([])
 
     if (inputFileRef.current) {
       inputFileRef.current.value = ''
@@ -378,12 +403,10 @@ export function ScannerPage() {
                   </div>
 
                   <div>
-                    <span>Resultado principal</span>
-                    <strong>{detectedIngredient}</strong>
-                    <small>Confianza del modelo: 96.4 %</small>
+                    <span>Ingredientes detectados</span>
+                    <strong>{detectedIngredients.join(', ')}</strong>
+                    <small>Modelo de IA local</small>
                   </div>
-
-                  <span className="prediction-result__class">Clase #04</span>
                 </div>
               )}
             </div>
@@ -409,54 +432,49 @@ export function ScannerPage() {
             <header className="panel__header">
               <div>
                 <h3>Confirmar detección</h3>
-                <p>Corrige el ingrediente si la predicción no es correcta.</p>
+                <p>Remueve los ingredientes que no sean correctos antes de agregar.</p>
               </div>
             </header>
 
-            <label className="form-field">
-              <span>Ingrediente detectado</span>
-
-              <select
-                value={detectedIngredient}
-                onChange={(event) =>
-                  setDetectedIngredient(event.target.value)
-                }
-              >
-                {ingredientOptions.map((ingredient) => (
-                  <option key={ingredient} value={ingredient}>
-                    {ingredient}
-                  </option>
-                ))}
-              </select>
-            </label>
-
             <div className="confirmation-inventory">
               <div className="section-label">
-                <span>Inventario actual</span>
-                <strong>{ingredients.length}</strong>
+                <span>Ingredientes detectados</span>
+                <strong>{detectedIngredients.length}</strong>
               </div>
 
-              <IngredientList
-                ingredients={ingredients}
-                removeIngredient={removeIngredient}
-                emptyText="Todavía no hay ingredientes confirmados."
-              />
-            </div>
-
-            <div className="information-box">
-              <Sparkles size={21} />
-
-              <div>
-                <strong>Este ingrediente mejora 4 recetas</strong>
-                <span>Guacamole podría alcanzar una coincidencia del 83 %.</span>
+              <div className="ingredient-list" style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '16px' }}>
+                {detectedIngredients.map((ingredient, index) => (
+                  <span className="ingredient-pill" key={index}>
+                    <span className="ingredient-pill__indicator" />
+                    {ingredient}
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setDetectedIngredients((prev) =>
+                          prev.filter((_, i) => i !== index)
+                        )
+                      }
+                      aria-label={`Eliminar ${ingredient}`}
+                    >
+                      <X size={14} />
+                    </button>
+                  </span>
+                ))}
               </div>
+
+              {detectedIngredients.length === 0 && (
+                <p style={{ color: 'var(--text-secondary)', fontSize: '14px', marginBottom: '16px' }}>
+                  No quedan ingredientes detectados para agregar.
+                </p>
+              )}
             </div>
 
             <div className="confirmation-actions">
               <button
                 className="button button--primary button--full"
                 type="button"
-                onClick={handleAddDetectedIngredient}
+                disabled={detectedIngredients.length === 0}
+                onClick={handleAddDetectedIngredients}
               >
                 <Plus size={18} />
                 Agregar a mis ingredientes
